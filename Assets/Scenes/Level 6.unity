@@ -5610,6 +5610,7 @@ MonoBehaviour:
   maxSpeed: 15
   autoRunSpeed: 10
   maxSideSpeed: 10
+  horizontalDeceleration: 15
   startX: -10
   endX: 20
   isInevitable: 0

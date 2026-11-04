@@ -40,9 +40,8 @@ private bool leapPointLaunchActive = false;
     public float autoRunSpeed = 10f;
     public float maxSideSpeed = 10f;
 
-    // =========================================================
-    // LEAP POINT
-    // =========================================================
+    [Header("Lateral Movement")]
+    public float horizontalDeceleration = 15f;
 
    
 
@@ -289,9 +288,21 @@ private bool leapPointLaunchActive = false;
                 ForceMode.Acceleration
             );
         }
-
+       
         // VELOCITY CONTROL
         Vector3 velocity = rb.linearVelocity;
+        if (!leftPressed && !rightPressed)
+{
+   
+
+    velocity.x = Mathf.MoveTowards(
+        velocity.x,
+        0f,
+        horizontalDeceleration * Time.fixedDeltaTime
+    );
+
+    
+}
 
         if (isStriking)
         {
