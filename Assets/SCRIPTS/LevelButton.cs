@@ -25,6 +25,7 @@ public class LevelButton : MonoBehaviour
                 "LevelButton: Missing Button component on " +
                 gameObject.name
             );
+
             return;
         }
 
@@ -35,6 +36,7 @@ public class LevelButton : MonoBehaviour
                 "LevelButton: Invalid levelIndex on " +
                 gameObject.name
             );
+
             button.interactable = false;
             return;
         }
@@ -49,10 +51,8 @@ public class LevelButton : MonoBehaviour
     {
         int unlockedLevel = LevelManager.GetUnlockedLevel();
 
-        // Enable only levels the player has unlocked.
         button.interactable = levelIndex <= unlockedLevel;
 
-        // Keep existing 1-based high-score keys.
         int highScore = PlayerPrefs.GetInt(
             "HighScore_" + levelIndex,
             0
@@ -62,10 +62,10 @@ public class LevelButton : MonoBehaviour
         {
             highScoreText.text = highScore.ToString();
         }
+
         Debug.Log(
-    $"Level {levelIndex} | Key: HighScore_{levelIndex} | " +
-    $"Displayed High Score: {highScore}"
-);
+            $"Level {levelIndex} | High Score: {highScore}"
+        );
     }
 
     private void LoadLevel()
@@ -76,23 +76,25 @@ public class LevelButton : MonoBehaviour
             return;
         }
 
-        // Build index 0 = game
-        // Build index 1 = LEVELS
-        // Build index 2 = Level 1
-        int targetBuildIndex = levelIndex + 1;
+        // Load by scene name instead of Build Index.
+        string targetScene = "Level " + levelIndex;
 
-        if (!Application.CanStreamedLevelBeLoaded(targetBuildIndex))
+        if (!Application.CanStreamedLevelBeLoaded(targetScene))
         {
             Debug.LogError(
-                "LevelButton: Cannot load build index " +
-                targetBuildIndex +
-                ". Check Build Profiles."
+                "LevelButton: Cannot load scene: " +
+                targetScene +
+                ". Check the active Build Profile."
             );
+
             return;
         }
 
         Time.timeScale = 1f;
 
-        SceneManager.LoadScene(targetBuildIndex);
+        SceneManager.LoadScene(
+            targetScene,
+            LoadSceneMode.Single
+        );
     }
 }

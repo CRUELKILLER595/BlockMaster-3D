@@ -2,6 +2,7 @@
 using UnityEngine;
 using UnityEngine.UI;
 using UnityEngine.InputSystem;
+using UnityEngine.SceneManagement;
 
 public class PauseButton : MonoBehaviour
 {
@@ -15,29 +16,30 @@ public class PauseButton : MonoBehaviour
     public GameObject[] Texts;
 
     private bool[] previousTextStates;
-    private bool isPaused = false;
+    private bool isPaused;
+
     private MusicManager musicManager;
+
+    public bool IsPaused => isPaused;
 
     private void Awake()
     {
-        musicManager = FindFirstObjectByType<MusicManager>();
+        musicManager = MusicManager.Instance;
     }
 
     private void Start()
     {
-        // Ensure the scene does not inherit a paused time scale.
         Time.timeScale = 1f;
+        isPaused = false;
 
-        if (pauseButton == null)
-        {
-            Debug.LogError(
-                "PauseButton: Assign the Pause Button in the Inspector."
-            );
-        }
-        else
+        if (pauseButton != null)
         {
             pauseButton.onClick.RemoveListener(TogglePause);
             pauseButton.onClick.AddListener(TogglePause);
+        }
+        else
+        {
+            Debug.LogError("PauseButton: Pause Button is not assigned.");
         }
 
         if (pauseMenu != null)
@@ -48,6 +50,12 @@ public class PauseButton : MonoBehaviour
 
     private void Update()
     {
+        if (SceneManager.GetSceneByName(
+            SettingsSceneController.SettingsSceneName).isLoaded)
+        {
+            return;
+        }
+
         Keyboard keyboard = Keyboard.current;
 
         if (keyboard != null &&
@@ -70,7 +78,6 @@ public class PauseButton : MonoBehaviour
         if (isPaused)
             return;
 
-        // Save visibility and hide gameplay UI.
         HideGameplayTexts();
 
         isPaused = true;
@@ -78,6 +85,9 @@ public class PauseButton : MonoBehaviour
 
         if (pauseMenu != null)
             pauseMenu.SetActive(true);
+
+        if (musicManager == null)
+            musicManager = MusicManager.Instance;
 
         if (musicManager != null)
             musicManager.PauseMusic();
@@ -91,15 +101,15 @@ public class PauseButton : MonoBehaviour
             return;
 
         isPaused = false;
-
-        // Restore time before resuming gameplay.
         Time.timeScale = 1f;
 
         if (pauseMenu != null)
             pauseMenu.SetActive(false);
 
-        // Restore each object to its previous active state.
         RestoreGameplayTexts();
+
+        if (musicManager == null)
+            musicManager = MusicManager.Instance;
 
         if (musicManager != null)
             musicManager.ResumeMusic();
@@ -119,9 +129,7 @@ public class PauseButton : MonoBehaviour
             if (Texts[i] == null)
                 continue;
 
-            previousTextStates[i] =
-                Texts[i].activeSelf;
-
+            previousTextStates[i] = Texts[i].activeSelf;
             Texts[i].SetActive(false);
         }
     }
@@ -133,13 +141,35 @@ public class PauseButton : MonoBehaviour
 
         for (int i = 0; i < Texts.Length; i++)
         {
-            if (Texts[i] == null)
-                continue;
-
-            Texts[i].SetActive(previousTextStates[i]);
+            if (Texts[i] != null)
+                Texts[i].SetActive(previousTextStates[i]);
         }
 
         previousTextStates = null;
+    }
+
+    public void RestartLevel()
+    {
+        RestoreGameplayTexts();
+
+        isPaused = false;
+        Time.timeScale = 1f;
+
+        Scene activeScene = SceneManager.GetActiveScene();
+
+        SceneManager.LoadScene(
+            activeScene.buildIndex,
+            LoadSceneMode.Single
+        );
+    }
+
+    // Connect the Pause Menu Settings button to this method.
+    public void SettingScene()
+    {
+        if (!isPaused)
+            PauseLevel();
+
+        SettingsSceneController.OpenSettings();
     }
 
     private void OnDestroy()
@@ -147,16 +177,8 @@ public class PauseButton : MonoBehaviour
         if (pauseButton != null)
             pauseButton.onClick.RemoveListener(TogglePause);
 
-        // Prevent a paused time scale from leaking into another scene.
+        // The source scene is deactivated, not destroyed, when
+        // entering Settings. Therefore this does not reset its pause state.
         Time.timeScale = 1f;
-    }
-    public void RestartLevel()
-    {
-        RestoreGameplayTexts(); // Restore UI before restarting
-        isPaused = false; // Reset pause state
-       Time.timeScale = 1f; // Ensure time scale is reset before restarting
-        UnityEngine.SceneManagement.SceneManager.LoadScene(
-            UnityEngine.SceneManagement.SceneManager.GetActiveScene().buildIndex
-        );
     }
 }

@@ -113,6 +113,12 @@ Debug.Log("Previous high score: " + previousHighScore);
 
         GAMEMANAGER gm =
             FindFirstObjectByType<GAMEMANAGER>();
+            if (gm == null)
+        {
+            Debug.LogError(
+                "LevelEnd: GAMEMANAGER not found."
+            );
+        }
 
         if (gm != null)
         {

@@ -7,12 +7,17 @@ public class MusicManager : MonoBehaviour
 {
     private static MusicManager instance;
 
+    public static MusicManager Instance => instance;
+
     private AudioSource audioSource;
-    private string currentSceneName;
     private bool initialized;
 
     public AudioClip menuMusic;
     public AudioClip[] levelMusic;
+
+    private const string SettingsSceneName = "SETTINGS";
+    private const string MusicVolumeKey = "BM_MusicVolume";
+    private const string MusicEnabledKey = "BM_MusicEnabled";
 
     [Header("Menu Scenes")]
     [SerializeField]
@@ -23,62 +28,69 @@ public class MusicManager : MonoBehaviour
         "LEVELS"
     };
 
-    void Awake()
+    public float CurrentVolume =>
+        audioSource != null ? audioSource.volume : 1f;
+
+    public bool IsMusicEnabled =>
+        audioSource != null && !audioSource.mute;
+
+    private void Awake()
     {
-        if (
-            instance != null &&
-            instance != this
-        )
+        if (instance != null && instance != this)
         {
             Destroy(gameObject);
             return;
         }
 
         instance = this;
-
         DontDestroyOnLoad(gameObject);
 
-        audioSource =
-            GetComponent<AudioSource>();
-
+        audioSource = GetComponent<AudioSource>();
         audioSource.loop = true;
         audioSource.playOnAwake = false;
+
+        audioSource.volume =
+            PlayerPrefs.GetFloat(MusicVolumeKey, audioSource.volume);
+
+        audioSource.mute =
+            PlayerPrefs.GetInt(MusicEnabledKey, 1) == 0;
     }
 
-    void OnEnable()
+    private void OnEnable()
     {
-        SceneManager.sceneLoaded +=
-            OnSceneLoaded;
+        SceneManager.sceneLoaded += OnSceneLoaded;
     }
 
-    void Start()
+    private void Start()
     {
-        OnSceneLoaded(
-            SceneManager.GetActiveScene(),
-            LoadSceneMode.Single
-        );
+        if (!initialized)
+        {
+            OnSceneLoaded(
+                SceneManager.GetActiveScene(),
+                LoadSceneMode.Single
+            );
+        }
     }
 
-    void OnDisable()
+    private void OnDisable()
     {
-        SceneManager.sceneLoaded -=
-            OnSceneLoaded;
+        SceneManager.sceneLoaded -= OnSceneLoaded;
     }
 
-    void OnSceneLoaded(
-        Scene scene,
-        LoadSceneMode mode
-    )
+    private void OnDestroy()
+    {
+        if (instance == this)
+            instance = null;
+    }
+
+    private void OnSceneLoaded(Scene scene, LoadSceneMode mode)
     {
         if (audioSource == null)
-        {
-            audioSource =
-                GetComponent<AudioSource>();
-        }
+            audioSource = GetComponent<AudioSource>();
 
-        // =====================================================
-        // MENU
-        // =====================================================
+        // Settings must never restart existing music.
+        if (scene.name == SettingsSceneName)
+            return;
 
         if (IsMenuScene(scene.name))
         {
@@ -88,143 +100,99 @@ public class MusicManager : MonoBehaviour
                 audioSource.isPlaying;
 
             if (!sameMenuMusic)
-            {
-                PlayMusic(
-                    menuMusic,
-                    false
-                );
-            }
+                PlayMusic(menuMusic, false);
         }
         else
         {
-            // =================================================
-            // LEVEL
-            // =================================================
+            int levelIndex = ExtractLevelIndex(scene);
 
-            int levelIndex =
-                ExtractLevelIndex(scene);
-
-            if (
+            if (levelMusic != null &&
                 levelIndex >= 0 &&
-                levelIndex < levelMusic.Length
-            )
+                levelIndex < levelMusic.Length)
             {
-                // FORCE restart.
-                PlayMusic(
-                    levelMusic[levelIndex],
-                    true
-                );
+                PlayMusic(levelMusic[levelIndex], true);
             }
             else
             {
                 Debug.LogWarning(
-                    "MusicManager: No music for scene " +
-                    scene.name
+                    "MusicManager: No music assigned for " + scene.name
                 );
             }
         }
 
-        currentSceneName =
-            scene.name;
-
         initialized = true;
     }
 
-    bool IsMenuScene(
-        string sceneName
-    )
+    private bool IsMenuScene(string sceneName)
     {
-        if (
-            string.IsNullOrEmpty(
-                sceneName
-            )
-        )
-        {
-            return false;
-        }
-
-        return menuSceneNames.Contains(
-            sceneName
-        );
+        return !string.IsNullOrEmpty(sceneName) &&
+               menuSceneNames.Contains(sceneName);
     }
 
-    void PlayMusic(
-        AudioClip clip,
-        bool forceRestart
-    )
+    private void PlayMusic(AudioClip clip, bool forceRestart)
     {
         if (clip == null)
         {
-            Debug.LogWarning(
-                "MusicManager: Missing music clip."
-            );
-
+            Debug.LogWarning("MusicManager: Missing music clip.");
             return;
         }
 
-        // Don't restart menu music unnecessarily.
-        if (
-            !forceRestart &&
+        if (!forceRestart &&
             audioSource.clip == clip &&
-            audioSource.isPlaying
-        )
+            audioSource.isPlaying)
         {
             return;
         }
 
         audioSource.Stop();
-
         audioSource.clip = clip;
         audioSource.time = 0f;
-
         audioSource.Play();
     }
 
-    int ExtractLevelIndex(
-        Scene scene
-    )
+    private int ExtractLevelIndex(Scene scene)
     {
-        // Example:
-        // Level 1  -> 0
-        // Level 5  -> 4
-        // SCENE 10 -> 9
+        string digits = new string(
+            scene.name.Where(char.IsDigit).ToArray()
+        );
 
-        string digits =
-            new string(
-                scene.name
-                    .Where(
-                        char.IsDigit
-                    )
-                    .ToArray()
-            );
-
-        if (
-            int.TryParse(
-                digits,
-                out int levelNumber
-            )
-        )
-        {
+        if (int.TryParse(digits, out int levelNumber))
             return levelNumber - 1;
-        }
 
-        // Build index fallback.
         return scene.buildIndex - 2;
     }
 
     public void PauseMusic()
     {
         if (audioSource != null)
-        {
             audioSource.Pause();
-        }
     }
 
     public void ResumeMusic()
     {
         if (audioSource != null)
-        {
             audioSource.UnPause();
-        }
+    }
+
+    public void SetMusicVolume(float volume)
+    {
+        if (audioSource == null)
+            return;
+
+        audioSource.volume = Mathf.Clamp01(volume);
+
+        PlayerPrefs.SetFloat(MusicVolumeKey, audioSource.volume);
+        PlayerPrefs.Save();
+    }
+
+    public void SetMusicEnabled(bool enabled)
+    {
+        if (audioSource == null)
+            return;
+
+        audioSource.mute = !enabled;
+
+        PlayerPrefs.SetInt(MusicEnabledKey, enabled ? 1 : 0);
+        PlayerPrefs.Save();
     }
 }
